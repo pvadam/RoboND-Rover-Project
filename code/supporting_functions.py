@@ -28,7 +28,7 @@ def update_rover(Rover, data):
             if np.isfinite(tot_time):
                   Rover.total_time = tot_time
       # Print out the fields in the telemetry data dictionary
-      print(data.keys())
+      # print(data.keys())
       # The current speed of the rover in m/s
       Rover.vel = convert_to_float(data["speed"])
       # The current position of the rover
@@ -54,7 +54,10 @@ def update_rover(Rover, data):
       Rover.throttle, 'steer_angle =', Rover.steer, 'near_sample:', Rover.near_sample, 
       'picking_up:', data["picking_up"], 'sending pickup:', Rover.send_pickup, 
       'total time:', Rover.total_time, 'samples remaining:', data["sample_count"], 
-      'samples collected:', Rover.samples_collected)
+      'samples collected:', Rover.samples_collected,
+      'roll:', Rover.roll, 'pitch:', Rover.pitch, 'yaw:', Rover.yaw,
+      'close_obstacle:', Rover.close_obstacle,
+      'mode:', Rover.mode)
       # Get the current image from the center camera of the rover
       imgString = data["image"]
       image = Image.open(BytesIO(base64.b64decode(imgString)))
@@ -153,5 +156,47 @@ def create_output_images(Rover):
 
       return encoded_string1, encoded_string2
 
+def sector_mask(shape,centre,radius,angle_range):
+    """
+    Return a boolean mask for a circular sector. The start/stop angles in  
+    `angle_range` should be given in clockwise order.
+    Credits: https://stackoverflow.com/questions/18352973
+    """
 
+    x,y = np.ogrid[:shape[0],:shape[1]]
+    cx,cy = centre
+    tmin,tmax = np.deg2rad(angle_range)
 
+    # ensure stop angle > start angle
+    if tmax < tmin:
+            tmax += 2*np.pi
+
+    # convert cartesian --> polar coordinates
+    r2 = (x-cx)*(x-cx) + (y-cy)*(y-cy)
+    theta = np.arctan2(x-cx,y-cy) - tmin
+
+    # wrap angles between 0 and 2*pi
+    theta %= (2*np.pi)
+
+    # circular mask
+    circmask = r2 <= radius*radius
+
+    # angular mask
+    anglemask = theta <= (tmax-tmin)
+
+    return circmask*anglemask
+
+def arrays_to_image(shape, xpix, ypix, x_range, y_range, value):
+    mx = np.zeros(shape)
+    mx[
+        -(np.clip(np.int_(ypix), y_range[0], y_range[1]) - y_range[0]),
+        np.clip(np.int_(xpix), x_range[0], x_range[1]) - x_range[0]
+    ] = 255
+    return mx
+
+# Convert an agle to the distance from 0 degrees
+def get_angle(angle):
+    conv_angle = angle % 360
+    if (conv_angle > 180):
+        conv_angle = 360 - conv_angle
+    return abs(conv_angle)
